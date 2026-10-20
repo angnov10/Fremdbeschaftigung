@@ -1,28 +1,33 @@
-import { normalizeAnswer, scoreAnswer, getScoreLabel } from '../scoring.js';
+import { scoreAnswer, getScoreLabel } from '../scoring.js';
 
 export function renderKrillionGame(state, challenge, app) {
   const container = document.createElement('section');
   container.className = 'page';
-  const isCorrect = state?.lastResult?.mode === 'krillion' && state?.lastResult?.correct;
+
+  const promptText = challenge.prompt || 'Name a historically important person, place, event or idea.';
+  const answerText = state?.draft || '';
 
   container.innerHTML = `
     <article class="game-card">
       <div class="question-header">
         <div>
-          <div class="section-label">Historical Krillion</div>
-          <h2>${challenge.title || 'Name the historical event'}</h2>
+          <div class="section-label">Krillion</div>
+          <h2>Rare answer, better score</h2>
         </div>
-        <div class="pill">${challenge.category || 'History'}</div>
+        <div class="pill">Daily prompt</div>
       </div>
 
-      <p>${challenge.description || 'Enter the answer that best fits this historical category.'}</p>
+      <div class="prompt-box">
+        <div class="section-label">Prompt</div>
+        <strong>${promptText}</strong>
+      </div>
 
       <div class="answer-field">
         <label>
           <span class="section-label">Your answer</span>
-          <input id="krillion-answer" type="text" autocomplete="off" placeholder="Type your answer" aria-label="Historical answer" value="${state?.draft || ''}" />
+          <input id="krillion-answer" type="text" autocomplete="off" spellcheck="false" placeholder="Type a precise answer — not just a rough category" value="${answerText}" />
         </label>
-        <button id="submit-krillion" type="button">Check answer</button>
+        <button id="submit-krillion" type="button">Submit answer</button>
       </div>
 
       <div class="result ${state?.lastResult ? 'visible' : ''} ${state?.lastResult?.correct ? 'success' : state?.lastResult ? 'error' : ''}" id="krillion-result">
@@ -30,9 +35,9 @@ export function renderKrillionGame(state, challenge, app) {
       </div>
 
       <div class="fact-box">
-        <div class="section-label">Scoring</div>
-        <p>Rare or specific answers score more. The score reflects how unusual and historically precise the answer is.</p>
-        <p><strong>Label:</strong> ${state?.lastResult ? getScoreLabel(state.lastResult.score) : 'Awaiting answer'}</p>
+        <div class="section-label">Score logic</div>
+        <p>Obvious answers score less. Rare but historically valid answers score more. The point is to be specific without guessing randomly.</p>
+        <p><strong>Current label:</strong> ${state?.lastResult ? getScoreLabel(state.lastResult.score) : 'Waiting for your answer'}</p>
       </div>
     </article>
   `;
@@ -40,12 +45,20 @@ export function renderKrillionGame(state, challenge, app) {
   container.querySelector('#submit-krillion').addEventListener('click', () => {
     const input = container.querySelector('#krillion-answer');
     const answer = input.value;
+    state.draft = answer;
+
     const evaluation = scoreAnswer(challenge, answer, 'krillion');
     const message = evaluation.isCorrect
-      ? `Correct — ${challenge.title} earns ${evaluation.score} points. Less common historical answers score more.`
-      : `Not quite. The answer is ${challenge.title}. Try a more specific or accurate historical name.`;
+      ? `Correct — ${challenge.accepted?.[0] || challenge.title || 'This answer'} scores ${evaluation.score}. Rare but valid historical answers are the sweet spot.`
+      : `Not quite. A stronger answer would be ${challenge.accepted?.[0] || challenge.title || 'the historically accurate answer'}.`;
 
-    state.lastResult = { mode: 'krillion', correct: evaluation.isCorrect, score: evaluation.score, message };
+    state.lastResult = {
+      mode: 'krillion',
+      correct: evaluation.isCorrect,
+      score: evaluation.score,
+      message,
+      reason: evaluation.reason
+    };
     state.completed = true;
     app.render();
   });

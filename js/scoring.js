@@ -2,32 +2,44 @@ export function normalizeAnswer(raw) {
   return String(raw || '')
     .trim()
     .toLowerCase()
+    .replace(/&/g, ' and ')
     .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ');
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function getAllowedAnswers(record) {
-  const names = [record.title, ...(record.aliases || [])];
-  return [...new Set(names.map(normalizeAnswer).filter(Boolean))];
+  const combined = [record.title, record.accepted, record.aliases, record.prompt]
+    .flat()
+    .filter(Boolean)
+    .map((value) => String(value));
+
+  const names = [...new Set(combined.map(normalizeAnswer).filter(Boolean))];
+  return names;
 }
 
 export function scoreAnswer(record, answer, mode = 'krillion') {
   const normalized = normalizeAnswer(answer);
-  const aliases = getAllowedAnswers(record);
-  const isCorrect = aliases.includes(normalized);
+  const allowed = getAllowedAnswers(record);
+  const isCorrect = allowed.includes(normalized) || (record.accepted || []).some((accepted) => normalizeAnswer(accepted) === normalized);
 
-  const base = Number(record.score || 100);
-  const rarityBonus = Number(record.difficulty || 2) === 1 ? 20 : Number(record.difficulty || 2) === 2 ? 10 : 0;
-  const modeMultiplier = mode === 'noillirk' ? 1.2 : 1;
-  const score = Math.max(20, Math.round((base + rarityBonus) * modeMultiplier));
+  const base = Number(record.score || 85);
+  const modeBonus = mode === 'noillirk' ? 12 : 0;
+  const score = Math.max(25, Math.round(base + modeBonus));
 
-  return { isCorrect, score, normalized, aliases };
+  return {
+    isCorrect,
+    score,
+    normalized,
+    allowed,
+    reason: isCorrect ? (mode === 'noillirk' ? 'Popular answer, strong fit, high recognition.' : 'Rare-but-valid historical answer.') : 'Not a matched historical answer.'
+  };
 }
 
 export function getScoreLabel(score) {
-  if (score >= 140) return 'Epic';
-  if (score >= 120) return 'Strong';
-  if (score >= 100) return 'Good';
-  if (score >= 80) return 'Solid';
+  if (score >= 95) return 'Legendary';
+  if (score >= 85) return 'Excellent';
+  if (score >= 70) return 'Strong';
+  if (score >= 55) return 'Good';
   return 'Starter';
 }
